@@ -227,7 +227,7 @@ test.describe('Full Mirroring Workflow', () => {
     expect(dataRow).toBeTruthy();
     if (operationStatus) {
       const statusMap: Record<string, string> = { Success: 'success', Failed: 'failed', Stopped: 'stopped' };
-      expect(dataRow).toContain(`"${statusMap[operationStatus] ?? operationStatus}`);
+      expect(dataRow).toContain(`"${statusMap[operationStatus] ?? operationStatus}"`);
     }
   });
 });

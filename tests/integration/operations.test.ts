@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import fs from 'fs';
+import path from 'path';
 import { getTestApp } from './helpers/testApp.js';
+
+const opsDir = path.join(process.env.STORAGE_DIR!, 'operations');
+
+function seedOp(id: string, data: Record<string, unknown>) {
+  return fs.promises.writeFile(path.join(opsDir, `${id}.json`), JSON.stringify(data, null, 2));
+}
 
 describe('Operations API', () => {
   let request: Awaited<ReturnType<typeof getTestApp>>;
@@ -76,6 +84,49 @@ describe('Operations API', () => {
       );
       expect(res.status).toBe(200);
       expect(res.body.message).toContain('success');
+    });
+  });
+
+  describe('operation file resilience', () => {
+    const goodId = 'test-good-op';
+    const corruptId = 'test-corrupt-op';
+    const rtId = 'test-roundtrip-op';
+
+    beforeAll(async () => {
+      await seedOp(goodId, {
+        id: goodId, name: 'Good Op', configFile: 'good.yaml',
+        status: 'success', startedAt: new Date().toISOString(), logs: ['done'],
+      });
+      await fs.promises.writeFile(
+        path.join(opsDir, `${corruptId}.json`), '{"id":"corrupt","name":"Trun',
+      );
+    });
+
+    it('one corrupt file does not empty GET /api/operations', async () => {
+      const res = await request.get('/api/operations');
+      expect(res.status).toBe(200);
+      const good = res.body.find((o: { id: string }) => o.id === goodId);
+      expect(good).toBeTruthy();
+      expect(good.configFile).toBe('good.yaml');
+    });
+
+    it('save and update round-trip preserves all fields', async () => {
+      await seedOp(rtId, {
+        id: rtId, name: 'RT Op', configFile: 'rt.yaml',
+        status: 'running', startedAt: new Date().toISOString(), logs: [],
+      });
+
+      const saved = (await request.get('/api/operations')).body
+        .find((o: { id: string }) => o.id === rtId);
+      expect(saved).toMatchObject({ id: rtId, configFile: 'rt.yaml', status: 'running' });
+
+      await request.post(`/api/operations/${rtId}/stop`);
+
+      const updated = (await request.get('/api/operations')).body
+        .find((o: { id: string }) => o.id === rtId);
+      expect(updated).toMatchObject({ configFile: 'rt.yaml', status: 'stopped' });
+
+      await request.delete(`/api/operations/${rtId}`);
     });
   });
 });
