@@ -7,7 +7,6 @@ ARG VCS_REF=""
 ARG VERSION=1.0
 
 WORKDIR /app
-RUN npm install -g npm@11.6.2
 
 COPY package*.json ./
 RUN npm config set fetch-timeout 300000 && \
@@ -15,9 +14,9 @@ RUN npm config set fetch-timeout 300000 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     if [ -f package-lock.json ]; then \
-      npm ci --no-fund --no-audit && npm audit fix || true; \
+      npm ci --no-fund --no-audit; \
     else \
-      npm install --no-fund --no-audit && npm audit fix || true; \
+      npm install --no-fund --no-audit; \
     fi
 
 COPY . .
@@ -113,11 +112,9 @@ RUN npm config set fetch-timeout 300000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     if [ -f package-lock.json ]; then \
       npm ci --no-fund --no-audit && \
-      npm audit fix || true && \
       npm cache clean --force; \
     else \
       npm install --no-fund --no-audit && \
-      npm audit fix || true && \
       npm cache clean --force; \
     fi
 
