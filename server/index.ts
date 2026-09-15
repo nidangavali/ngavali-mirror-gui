@@ -312,8 +312,12 @@ async function getOperations(): Promise<OperationRecord[]> {
 
     for (const file of files) {
       if (file.endsWith('.json')) {
-        const content = await fsp.readFile(path.join(OPERATIONS_DIR, file), 'utf8');
-        operations.push(JSON.parse(content));
+        try {
+          const content = await fsp.readFile(path.join(OPERATIONS_DIR, file), 'utf8');
+          operations.push(JSON.parse(content));
+        } catch (fileErr: unknown) {
+          console.error(`Skipping corrupt operation file ${file}:`, (fileErr as Error).message);
+        }
       }
     }
 
@@ -324,9 +328,15 @@ async function getOperations(): Promise<OperationRecord[]> {
   }
 }
 
+async function atomicWriteJson(filepath: string, data: object): Promise<void> {
+  const tmpPath = `${filepath}.${process.pid}.tmp`;
+  await fsp.writeFile(tmpPath, JSON.stringify(data, null, 2));
+  await fsp.rename(tmpPath, filepath);
+}
+
 async function saveOperation(operation: OperationRecord): Promise<void> {
   const filename = `${operation.id}.json`;
-  await fsp.writeFile(path.join(OPERATIONS_DIR, filename), JSON.stringify(operation, null, 2));
+  await atomicWriteJson(path.join(OPERATIONS_DIR, filename), operation);
 }
 
 async function updateOperation(operationId: string, updates: Partial<OperationRecord>): Promise<OperationRecord | null> {
@@ -337,10 +347,14 @@ async function updateOperation(operationId: string, updates: Partial<OperationRe
     const content = await fsp.readFile(filepath, 'utf8');
     const operation: OperationRecord = JSON.parse(content);
     const updatedOperation = { ...operation, ...updates };
-    await fsp.writeFile(filepath, JSON.stringify(updatedOperation, null, 2));
+    await atomicWriteJson(filepath, updatedOperation);
     return updatedOperation;
   } catch (error: unknown) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null;
+    }
+    if (error instanceof SyntaxError) {
+      console.error(`Corrupt operation file ${filename}, skipping update:`, error.message);
       return null;
     }
     console.error('Error updating operation:', error);
@@ -1626,7 +1640,11 @@ app.post('/api/operations/start', async (req: Request, res: Response) => {
       if (!logStreamFinalized) logStream.write(data);
     });
 
+    let operationFinalized = false;
+
     child.on('close', async (code: number | null) => {
+      if (operationFinalized) return;
+      operationFinalized = true;
       runningProcesses.delete(operationId);
       finalizeLogStream();
 
@@ -1676,6 +1694,8 @@ app.post('/api/operations/start', async (req: Request, res: Response) => {
     });
 
     child.on('error', async (error: Error) => {
+      if (operationFinalized) return;
+      operationFinalized = true;
       runningProcesses.delete(operationId);
       finalizeLogStream();
 

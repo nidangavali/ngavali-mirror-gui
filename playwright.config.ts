@@ -30,7 +30,7 @@ export default defineConfig({
   ...(isCI
     ? {
         webServer: {
-          command: 'npm run dev',
+          command: 'npx tsx server/index.ts',
           url: baseURL,
           reuseExistingServer: false,
           timeout: 120 * 1000,
