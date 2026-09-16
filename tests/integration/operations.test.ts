@@ -111,6 +111,15 @@ describe('Operations API', () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('retryTimes');
     });
+
+    it('rejects retryTimes outside the safe integer range', async () => {
+      const res = await request.post('/api/operations/start').send({
+        configFile: 'ops-test-config.yaml',
+        optionalFlags: { retryTimes: Number.MAX_SAFE_INTEGER + 1 },
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('retryTimes');
+    });
   });
 
   describe('DELETE /api/operations/:id', () => {

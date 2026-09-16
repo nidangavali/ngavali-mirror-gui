@@ -138,7 +138,7 @@ function buildOptionalFlagArgs(
   if (typed.retryTimes != null) {
     if (
       typeof typed.retryTimes !== 'number' ||
-      !Number.isInteger(typed.retryTimes) ||
+      !Number.isSafeInteger(typed.retryTimes) ||
       typed.retryTimes < 0
     ) {
       return {
